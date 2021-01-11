@@ -7,13 +7,13 @@ import static org.mockito.Mockito.verify;
 import com.bank.accountservice.exception.*;
 import com.bank.accountservice.model.DepositRequest;
 import com.bank.accountservice.model.TransferRequest;
-import com.bank.accountservice.model.account.AccountType;
-import com.bank.accountservice.model.account.CheckedAccount;
-import com.bank.accountservice.model.account.LoanAccount;
-import com.bank.accountservice.model.account.SavingAccount;
+import com.bank.accountservice.model.account.*;
 import com.bank.accountservice.repository.AccountRepository;
 import org.iban4j.Iban;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -22,6 +22,7 @@ import org.springframework.context.annotation.Import;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 @DataJpaTest
 @Import({
@@ -137,19 +138,10 @@ public class AccountServiceITest {
         //then
     }
 
-    @Test
-    public void transfer_works() {
+    @ParameterizedTest
+    @MethodSource("validSenderReceiverAccountsProvider")
+    public void transfer_works(final Account senderAccount, final Account receiverAccount) {
         //given
-        final var senderAccount = CheckedAccount.builder()
-                .balance(BigDecimal.TEN)
-                .customerId(1)
-                .iban(Iban.random().toString())
-                .build();
-        final var receiverAccount = CheckedAccount.builder()
-                .balance(BigDecimal.ONE)
-                .customerId(2)
-                .iban(Iban.random().toString())
-                .build();
         accountRepository.saveAll(List.of(senderAccount, receiverAccount));
         final var transferReq = TransferRequest.builder()
                 .amount(BigDecimal.valueOf(5))
@@ -163,10 +155,39 @@ public class AccountServiceITest {
         //then
         final var senderAccountAfterTransfer = accountRepository.findById(senderAccount.getIban());
         assertThat(senderAccountAfterTransfer).isNotEmpty();
-        assertThat(senderAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.valueOf(5));
+        assertThat(senderAccountAfterTransfer.get().getBalance()).isEqualTo(senderAccount.getBalance().subtract(transferReq.getAmount()));
         final var receiverAccountAfterTransfer = accountRepository.findById(receiverAccount.getIban());
         assertThat(receiverAccountAfterTransfer).isNotEmpty();
-        assertThat(receiverAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.valueOf(6));
+        assertThat(receiverAccountAfterTransfer.get().getBalance()).isEqualTo(receiverAccount.getBalance().add(transferReq.getAmount()));
+    }
+
+    public static Stream<Arguments> validSenderReceiverAccountsProvider() {
+        final var checkedAccount = CheckedAccount.builder()
+                .balance(BigDecimal.valueOf(10000))
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        final var loanAccount = LoanAccount.builder()
+                .balance(BigDecimal.ZERO)
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        final var savingAccount = SavingAccount.builder()
+                .balance(BigDecimal.TEN)
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .boundCheckedAccountIban(checkedAccount.getIban())
+                .build();
+        final var checkedAccount2 = CheckedAccount.builder()
+                .balance(BigDecimal.valueOf(10000))
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        return Stream.of(
+                Arguments.of(checkedAccount, checkedAccount2),
+                Arguments.of(checkedAccount, savingAccount),
+                Arguments.of(checkedAccount, loanAccount),
+                Arguments.of(savingAccount, checkedAccount));
     }
 
     @Test

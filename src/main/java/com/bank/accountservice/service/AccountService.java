@@ -54,7 +54,7 @@ public class AccountService {
         final Account receiverAccount = getAccount(transferReq.getReceiverIban());
         validateTransfer(senderAccount, receiverAccount, transferReq);
         setNewBalancesAndSave(transferReq.getAmount(), senderAccount, receiverAccount);
-        transactionService.createAndSaveDepositTransaction(transferReq);
+        transactionService.createAndSaveTransferTransaction(transferReq);
     }
 
     private void setNewBalancesAndSave(BigDecimal amount, Account senderAccount, Account receiverAccount) {
