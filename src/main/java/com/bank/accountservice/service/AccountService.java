@@ -1,4 +1,4 @@
-package com.bank.accountservice;
+package com.bank.accountservice.service;
 
 import com.bank.accountservice.exception.AccountNotFoundException;
 import com.bank.accountservice.model.DepositRequest;
@@ -13,6 +13,7 @@ import javax.transaction.Transactional;
 public class AccountService {
 
     private final AccountRepository accountRepository;
+    private final TransactionService transactionService;
 
     @Transactional
     public void deposit(final DepositRequest depositRequest) {
@@ -21,5 +22,6 @@ public class AccountService {
                 .orElseThrow(() -> new AccountNotFoundException(depositRequest.getIban()));
         account.setBalance(account.getBalance().add(depositRequest.getAmount()));
         accountRepository.save(account);
+        transactionService.createAndSaveDepositTransaction(depositRequest);
     }
 }
