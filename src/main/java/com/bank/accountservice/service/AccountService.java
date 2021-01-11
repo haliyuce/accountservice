@@ -6,6 +6,7 @@ import com.bank.accountservice.model.TransferRequest;
 import com.bank.accountservice.model.account.Account;
 import com.bank.accountservice.model.account.AccountType;
 import com.bank.accountservice.model.account.SavingAccount;
+import com.bank.accountservice.model.transaction.TransactionRecord;
 import com.bank.accountservice.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -77,5 +78,9 @@ public class AccountService {
                 throw new SavingAccountToUnboundAccountTransferException();
             }
         }
+    }
+
+    public Optional<List<TransactionRecord>> getTransactions(final String iban) {
+        return transactionService.findTransactionsByAccountIban(iban);
     }
 }
