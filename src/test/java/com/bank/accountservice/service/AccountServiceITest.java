@@ -4,8 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 
-import com.bank.accountservice.exception.AccountNotFoundException;
+import com.bank.accountservice.exception.*;
 import com.bank.accountservice.model.DepositRequest;
+import com.bank.accountservice.model.TransferRequest;
 import com.bank.accountservice.model.account.AccountType;
 import com.bank.accountservice.model.account.CheckedAccount;
 import com.bank.accountservice.model.account.LoanAccount;
@@ -134,6 +135,134 @@ public class AccountServiceITest {
                 () -> accountService.getCurrentBalance(Iban.random().toString()));
 
         //then
+    }
+
+    @Test
+    public void transfer_works() {
+        //given
+        final var senderAccount = CheckedAccount.builder()
+                .balance(BigDecimal.TEN)
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        final var receiverAccount = CheckedAccount.builder()
+                .balance(BigDecimal.ONE)
+                .customerId(2)
+                .iban(Iban.random().toString())
+                .build();
+        accountRepository.saveAll(List.of(senderAccount, receiverAccount));
+        final var transferReq = TransferRequest.builder()
+                .amount(BigDecimal.valueOf(5))
+                .senderIban(senderAccount.getIban())
+                .receiverIban(receiverAccount.getIban())
+                .build();
+
+        //when
+        accountService.transfer(transferReq);
+
+        //then
+        final var senderAccountAfterTransfer = accountRepository.findById(senderAccount.getIban());
+        assertThat(senderAccountAfterTransfer).isNotEmpty();
+        assertThat(senderAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.valueOf(5));
+        final var receiverAccountAfterTransfer = accountRepository.findById(receiverAccount.getIban());
+        assertThat(receiverAccountAfterTransfer).isNotEmpty();
+        assertThat(receiverAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.valueOf(6));
+    }
+
+    @Test
+    public void transfer_fails_when_sender_has_insufficient_amounts() {
+        //given
+        final var senderAccount = CheckedAccount.builder()
+                .balance(BigDecimal.ZERO)
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        final var receiverAccount = CheckedAccount.builder()
+                .balance(BigDecimal.ONE)
+                .customerId(2)
+                .iban(Iban.random().toString())
+                .build();
+        accountRepository.saveAll(List.of(senderAccount, receiverAccount));
+        final var transferReq = TransferRequest.builder()
+                .amount(BigDecimal.valueOf(5))
+                .senderIban(senderAccount.getIban())
+                .receiverIban(receiverAccount.getIban())
+                .build();
+
+        //when
+        assertThrows(InsufficientFundsException.class, () -> accountService.transfer(transferReq));
+
+        //then
+        final var senderAccountAfterTransfer = accountRepository.findById(senderAccount.getIban());
+        assertThat(senderAccountAfterTransfer).isNotEmpty();
+        assertThat(senderAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.ZERO);
+        final var receiverAccountAfterTransfer = accountRepository.findById(receiverAccount.getIban());
+        assertThat(receiverAccountAfterTransfer).isNotEmpty();
+        assertThat(receiverAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.ONE);
+    }
+
+    @Test
+    public void transfer_fails_when_sender_is_loan_account() {
+        //given
+        final var senderAccount = LoanAccount.builder()
+                .balance(BigDecimal.TEN)
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        final var receiverAccount = CheckedAccount.builder()
+                .balance(BigDecimal.ONE)
+                .customerId(2)
+                .iban(Iban.random().toString())
+                .build();
+        accountRepository.saveAll(List.of(senderAccount, receiverAccount));
+        final var transferReq = TransferRequest.builder()
+                .amount(BigDecimal.valueOf(5))
+                .senderIban(senderAccount.getIban())
+                .receiverIban(receiverAccount.getIban())
+                .build();
+
+        //when
+        assertThrows(LoanAccountWithdrawException.class, () -> accountService.transfer(transferReq));
+
+        //then
+        final var senderAccountAfterTransfer = accountRepository.findById(senderAccount.getIban());
+        assertThat(senderAccountAfterTransfer).isNotEmpty();
+        assertThat(senderAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.TEN);
+        final var receiverAccountAfterTransfer = accountRepository.findById(receiverAccount.getIban());
+        assertThat(receiverAccountAfterTransfer).isNotEmpty();
+        assertThat(receiverAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.ONE);
+    }
+
+    @Test
+    public void transfer_fails_when_saving_account_sends_money_to_account_other_than_boundedCheckedAccount() {
+        //given
+        final var senderAccount = SavingAccount.builder()
+                .balance(BigDecimal.TEN)
+                .customerId(1)
+                .iban(Iban.random().toString())
+                .build();
+        final var receiverAccount = CheckedAccount.builder()
+                .balance(BigDecimal.ONE)
+                .customerId(2)
+                .iban(Iban.random().toString())
+                .build();
+        accountRepository.saveAll(List.of(senderAccount, receiverAccount));
+        final var transferReq = TransferRequest.builder()
+                .amount(BigDecimal.valueOf(5))
+                .senderIban(senderAccount.getIban())
+                .receiverIban(receiverAccount.getIban())
+                .build();
+
+        //when
+        assertThrows(SavingAccountToUnboundAccountTransferException.class, () -> accountService.transfer(transferReq));
+
+        //then
+        final var senderAccountAfterTransfer = accountRepository.findById(senderAccount.getIban());
+        assertThat(senderAccountAfterTransfer).isNotEmpty();
+        assertThat(senderAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.TEN);
+        final var receiverAccountAfterTransfer = accountRepository.findById(receiverAccount.getIban());
+        assertThat(receiverAccountAfterTransfer).isNotEmpty();
+        assertThat(receiverAccountAfterTransfer.get().getBalance()).isEqualTo(BigDecimal.ONE);
     }
 
 }

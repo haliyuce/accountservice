@@ -1,12 +1,15 @@
 package com.bank.accountservice.service;
 
-import com.bank.accountservice.exception.AccountNotFoundException;
+import com.bank.accountservice.exception.*;
 import com.bank.accountservice.model.DepositRequest;
+import com.bank.accountservice.model.TransferRequest;
 import com.bank.accountservice.model.account.Account;
 import com.bank.accountservice.model.account.AccountType;
+import com.bank.accountservice.model.account.SavingAccount;
 import com.bank.accountservice.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.transaction.Transactional;
 import java.math.BigDecimal;
@@ -43,5 +46,36 @@ public class AccountService {
                 .findById(iban)
                 .orElseThrow(() -> new AccountNotFoundException(iban));
         return account;
+    }
+
+    @Transactional
+    public void transfer(final TransferRequest transferReq) {
+        final Account senderAccount = getAccount(transferReq.getSenderIban());
+        final Account receiverAccount = getAccount(transferReq.getReceiverIban());
+        validateTransfer(senderAccount, receiverAccount, transferReq);
+        setNewBalancesAndSave(transferReq.getAmount(), senderAccount, receiverAccount);
+        transactionService.createAndSaveDepositTransaction(transferReq);
+    }
+
+    private void setNewBalancesAndSave(BigDecimal amount, Account senderAccount, Account receiverAccount) {
+        senderAccount.setBalance(senderAccount.getBalance().subtract(amount));
+        receiverAccount.setBalance(receiverAccount.getBalance().add(amount));
+        accountRepository.saveAll(List.of(senderAccount, receiverAccount));
+    }
+
+    private void validateTransfer(Account senderAccount, Account receiverAccount, TransferRequest transferReq) {
+        if (senderAccount.getBalance().compareTo(transferReq.getAmount()) < 1) {
+            throw new InsufficientFundsException();
+        }
+        if (AccountType.LOAN.equals(senderAccount.getType())) {
+            throw new LoanAccountWithdrawException();
+        }
+        if (AccountType.SAVING.equals(senderAccount.getType())) {
+            final var savingSenderAccount = (SavingAccount) senderAccount;
+            if (!StringUtils.hasText(savingSenderAccount.getBoundCheckedAccountIban())
+                    || !savingSenderAccount.getBoundCheckedAccountIban().equals(receiverAccount.getIban())) {
+                throw new SavingAccountToUnboundAccountTransferException();
+            }
+        }
     }
 }
