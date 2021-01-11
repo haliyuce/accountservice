@@ -1,5 +1,6 @@
 package com.bank.accountservice.model.account;
 
+import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,7 +21,8 @@ public class SavingAccount extends Account {
         super();
     }
 
-    public SavingAccount(String iban, @NotNull BigDecimal balance, int customerId, String boundCheckedAccountIban) {
+    @Builder
+    protected SavingAccount(String iban, @NotNull BigDecimal balance, int customerId, String boundCheckedAccountIban) {
         super(iban, balance, customerId, AccountType.SAVING);
         this.boundCheckedAccountIban = boundCheckedAccountIban;
     }

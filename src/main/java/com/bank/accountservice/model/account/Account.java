@@ -22,6 +22,7 @@ public abstract class Account {
     private String iban;
     @NotNull
     private BigDecimal balance;
+    @NotNull
     private int customerId;
     @Column(insertable = false, updatable = false)
     @Enumerated(EnumType.STRING)

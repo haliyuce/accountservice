@@ -1,5 +1,7 @@
 package com.bank.accountservice.model.account;
 
+import lombok.Builder;
+
 import javax.persistence.DiscriminatorValue;
 import javax.persistence.Entity;
 import javax.validation.constraints.NotNull;
@@ -13,7 +15,8 @@ public class LoanAccount extends Account {
         super();
     }
 
-    public LoanAccount(String iban, @NotNull BigDecimal balance, int customerId) {
+    @Builder
+    protected LoanAccount(String iban, @NotNull BigDecimal balance, int customerId) {
         super(iban, balance, customerId, AccountType.LOAN);
     }
 }
